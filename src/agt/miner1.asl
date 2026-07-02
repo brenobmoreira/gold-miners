@@ -29,6 +29,15 @@ partner(miner1) :- .my_name(miner2).
 partner(miner4) :- .my_name(miner3).
 partner(miner3) :- .my_name(miner4).
 
+// each partner owns half of the map (by column X) to reduce wasted crossings
+region(left)  :- .my_name(miner1).
+region(left)  :- .my_name(miner3).
+region(right) :- .my_name(miner2).
+region(right) :- .my_name(miner4).
+
+in_my_region(X) :- region(left)  & gsize(_,W,_) & X <  W/2.
+in_my_region(X) :- region(right) & gsize(_,W,_) & X >= W/2.
+
 
 /* When free, agents wonder around. This is encoded with a plan that executes
  * when agents become free (which happens initially because of the belief "free"
@@ -131,17 +140,23 @@ partner(miner3) :- .my_name(miner4).
 
 @pgold[atomic]           // atomic: so as not to handle another event until handle gold is initialised
 +gold(X,Y)
-  :  not carrying_gold & free
+  :  not carrying_gold & free & in_my_region(X)
   <- -free;
      .print("Gold perceived: ",gold(X,Y));
      !init_handle(gold(X,Y)).
+
+// gold outside my region -> hand it to my partner (whose region it is)
+@pregion
++gold(X,Y)[source(self)]
+  :  partner(P) & not in_my_region(X)
+  <- .send(P,tell,gold(X,Y)).
 
 // if I see gold and I'm not free but also not carrying gold yet
 // (I'm probably going towards one), abort handle(gold) and pick up
 // this one which is nearer
 @pcell2[atomic]
 +gold(X,Y)
-  :  not carrying_gold & not free & team(T) &
+  :  not carrying_gold & not free & in_my_region(X) & team(T) &
      .desire(handle(gold(OldX,OldY))) &   // I desire to handle another gold which
      pos(AgX,AgY) &
      jia.dist(X,   Y,   AgX,AgY,DNewG) &
@@ -152,14 +167,24 @@ partner(miner3) :- .my_name(miner4).
      .print("Giving up current gold ",gold(OldX,OldY)," to handle ",gold(X,Y)," which I am seeing!");
      !init_handle(gold(X,Y)).
 
-// I'm busy and my backlog is over my capacity: ask my partner for help by
-// forwarding this freshly perceived gold. Only forward gold I found myself
-// ([source(self)]) so a forwarded piece is never bounced back (no ping-pong).
+// my region is overloaded (more known gold than my capacity): ask my partner
+// to cross into my region and help with this piece. Only for gold in my own
+// region ([source(self)] avoids ping-pong); out-of-region gold is routed by
+// @pregion instead.
 @pcell3
 +gold(X,Y)[source(self)]
-  :  not free & partner(P) & capacity(N) & .count(gold(_,_),C) & C > N
-  <- .print("Over capacity (",C,">",N,"): forwarding ",gold(X,Y)," to partner ",P);
-     .send(P,tell,gold(X,Y)).
+  :  in_my_region(X) & not free & partner(P) & capacity(N) & .count(gold(_,_),C) & C > N
+  <- .print("Over capacity (",C,">",N,") in my region: asking ",P," to help with ",gold(X,Y));
+     .send(P,achieve,help(gold(X,Y))).
+
+// partner asked for help: cross into its region and handle the gold if I'm
+// idle (handle itself does not check region); if busy, decline.
++!help(gold(X,Y)) : free
+  <- -free;
+     .print("Crossing to help my partner with ",gold(X,Y));
+     !init_handle(gold(X,Y)).
++!help(gold(X,Y)) : not free
+  <- .print("Busy, can't help my partner with ",gold(X,Y)," right now").
 
 
 /* The next plans encode how to handle a piece of gold.
@@ -238,7 +263,7 @@ partner(miner3) :- .my_name(miner4).
 // reserved by my own team (partners must not pursue the same target).
 +!choose_gold
   :  gold(_,_) & team(T)
-  <- .findall(gold(X,Y), gold(X,Y) & not reserved(X,Y,T), LG);
+  <- .findall(gold(X,Y), gold(X,Y) & not reserved(X,Y,T) & in_my_region(X), LG);
      !calc_gold_distance(LG,LD);
      .length(LD,LLD); LLD > 0;
      .print("Gold distances: ",LD,LLD);
