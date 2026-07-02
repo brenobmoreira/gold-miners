@@ -38,6 +38,18 @@ region(right) :- .my_name(miner4).
 in_my_region(X) :- region(left)  & gsize(_,W,_) & X <  W/2.
 in_my_region(X) :- region(right) & gsize(_,W,_) & X >= W/2.
 
+// --- ablation flags (all ON by default, for both teams) ---
+use(reservation). // F1: intra-team gold reservation
+use(regions).     // F3a: static left/right region split
+use(routing).     // F3b: dynamic nearest-agent assignment (direct comms)
+use(help).        // F2: cross-region help under overload
+
+// dynamic routing: I take a gold if I'm at least as close as my partner.
+// If I don't know my partner's position yet, assume the gold is mine.
+i_am_closest(_,_) :- not partner_pos(_,_).
+i_am_closest(X,Y) :- pos(MX,MY) & partner_pos(PX,PY)
+                   & jia.dist(MX,MY,X,Y,MyD) & jia.dist(PX,PY,X,Y,PD) & MyD <= PD.
+
 
 /* When free, agents wonder around. This is encoded with a plan that executes
  * when agents become free (which happens initially because of the belief "free"
@@ -138,9 +150,22 @@ in_my_region(X) :- region(right) & gsize(_,W,_) & X >= W/2.
 // perceived golds are included as self beliefs (to not be removed once not seen anymore)
 +cell(X,Y,gold) <- +gold(X,Y).
 
+// --- flag-gated helpers ---
+// reservation (F1): only reserve/release when the flag is on
++!try_reserve(X,Y,T) : use(reservation) <- reserve(X,Y,T,_).
++!try_reserve(_,_,_) : true <- true.
++!try_release(X,Y,T) : use(reservation) <- release(X,Y,T).
++!try_release(_,_,_) : true <- true.
+
+// dynamic routing (F3b): share my position with my partner (direct comms)
++!share_pos : use(routing) & partner(P) & pos(MX,MY) <- .send(P,tell,at(MX,MY)).
++!share_pos : true <- true.
+// remember my partner's last shared position
++at(X,Y)[source(P)] : partner(P) <- -+partner_pos(X,Y).
+
 @pgold[atomic]           // atomic: so as not to handle another event until handle gold is initialised
 +gold(X,Y)
-  :  not carrying_gold & free & in_my_region(X)
+  :  not carrying_gold & free & (not use(regions) | in_my_region(X))
   <- -free;
      .print("Gold perceived: ",gold(X,Y));
      !init_handle(gold(X,Y)).
@@ -148,7 +173,7 @@ in_my_region(X) :- region(right) & gsize(_,W,_) & X >= W/2.
 // gold outside my region -> hand it to my partner (whose region it is)
 @pregion
 +gold(X,Y)[source(self)]
-  :  partner(P) & not in_my_region(X)
+  :  use(regions) & partner(P) & not in_my_region(X)
   <- .send(P,tell,gold(X,Y)).
 
 // if I see gold and I'm not free but also not carrying gold yet
@@ -156,14 +181,14 @@ in_my_region(X) :- region(right) & gsize(_,W,_) & X >= W/2.
 // this one which is nearer
 @pcell2[atomic]
 +gold(X,Y)
-  :  not carrying_gold & not free & in_my_region(X) & team(T) &
+  :  not carrying_gold & not free & (not use(regions) | in_my_region(X)) & team(T) &
      .desire(handle(gold(OldX,OldY))) &   // I desire to handle another gold which
      pos(AgX,AgY) &
      jia.dist(X,   Y,   AgX,AgY,DNewG) &
      jia.dist(OldX,OldY,AgX,AgY,DOldG) &
      DNewG < DOldG                        // is farther than the one just perceived
   <- .drop_desire(handle(gold(OldX,OldY)));
-     release(OldX,OldY,T);                // free the abandoned target for my team
+     !try_release(OldX,OldY,T);           // free the abandoned target for my team
      .print("Giving up current gold ",gold(OldX,OldY)," to handle ",gold(X,Y)," which I am seeing!");
      !init_handle(gold(X,Y)).
 
@@ -173,8 +198,8 @@ in_my_region(X) :- region(right) & gsize(_,W,_) & X >= W/2.
 // @pregion instead.
 @pcell3
 +gold(X,Y)[source(self)]
-  :  in_my_region(X) & not free & partner(P) & capacity(N) & .count(gold(_,_),C) & C > N
-  <- .print("Over capacity (",C,">",N,") in my region: asking ",P," to help with ",gold(X,Y));
+  :  use(help) & not free & partner(P) & capacity(N) & .count(gold(_,_),C) & C > N
+  <- .print("Over capacity (",C,">",N,"): asking ",P," to help with ",gold(X,Y));
      .send(P,achieve,help(gold(X,Y))).
 
 // partner asked for help: cross into its region and handle the gold if I'm
@@ -213,14 +238,15 @@ in_my_region(X) :- region(right) & gsize(_,W,_) & X >= W/2.
 
 +!handle(gold(X,Y))
   :  not free & team(T)
-  <- reserve(X,Y,T,_);   // best-effort: choose_gold already skips reserved gold
+  <- !share_pos;         // tell my partner where I am (dynamic routing)
+     !try_reserve(X,Y,T); // best-effort: choose_gold already skips reserved gold
      .print("Handling ",gold(X,Y)," now.");
      !pos(X,Y);
      !ensure(pick,gold(X,Y));
      ?depot(_,DX,DY);
      !pos(DX,DY);
      !ensure(drop, 0);
-     release(X,Y,T);
+     !try_release(X,Y,T);
      .print("Finish handling ",gold(X,Y));
      ?score(S);
      -+score(S+1);
@@ -230,7 +256,7 @@ in_my_region(X) :- region(right) & gsize(_,W,_) & X >= W/2.
 
 // if ensure(pick/drop) failed, release the reservation and pursue another gold
 -!handle(gold(X,Y)) : team(T)
-  <- release(X,Y,T);
+  <- !try_release(X,Y,T);
      .print("failed to handle ",gold(X,Y));
      .abolish(gold(X,Y)); // ignore source
      !!choose_gold.
@@ -263,7 +289,13 @@ in_my_region(X) :- region(right) & gsize(_,W,_) & X >= W/2.
 // reserved by my own team (partners must not pursue the same target).
 +!choose_gold
   :  gold(_,_) & team(T)
-  <- .findall(gold(X,Y), gold(X,Y) & not reserved(X,Y,T) & in_my_region(X), LG);
+  <- !share_pos;                            // direct comms: update my partner
+     .findall(gold(X,Y),
+        gold(X,Y)
+        & (not use(reservation) | not reserved(X,Y,T))  // F1
+        & (not use(regions)     | in_my_region(X))       // F3a static
+        & (not use(routing)     | i_am_closest(X,Y)),    // F3b dynamic
+        LG);
      !calc_gold_distance(LG,LD);
      .length(LD,LLD); LLD > 0;
      .print("Gold distances: ",LD,LLD);
