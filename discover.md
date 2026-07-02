@@ -1,179 +1,115 @@
-# Discover — achados técnicos (JaCaMo / Jason / CArtAgO)
+# Discover — achados conceituais e aprendizados (SMA / JaCaMo)
 
-Registro dos achados, armadilhas ("gotchas") e decisões de design encontrados durante
-o desenvolvimento. Útil como referência para o time e material para o relatório.
-
----
-
-## 1. CArtAgO mapeia `String` Java → **string** Jason (não átomo)
-
-**Achado (crítico).** Quando um artefato CArtAgO publica uma propriedade observável
-com valor `String` (ex.: `defineObsProperty("reserved", x, y, "teamA")`), esse valor
-chega ao agente como uma **string Jason** `"teamA"` — **não** como o átomo `teamA`.
-
-**Evidência.** Decompilando `jaca.JavaLibrary.objectToTerm(Object)` (jar `jaca-3.1`):
-para `instanceof java.lang.String` ele chama
-`ASSyntax.createString(...) -> StringTerm`. Números viram `NumberTerm`; `Boolean` vira
-`true/false`; um objeto que já é `Term` é preservado.
-
-**Consequência.** Em Jason, `"teamA"` (string) **não unifica** com `teamA` (átomo).
-Um filtro `not reserved(X,Y,teamA)` (átomo) **nunca casaria** com a crença real
-`reserved(5,10,"teamA")` (string) → a lógica compila mas **não faz efeito** em runtime.
-
-**Correção adotada.** Representar o time como **string** também no lado Jason:
-```jason
-team("teamA") :- .my_name(miner1).
-```
-Assim `team(T)` devolve `T = "teamA"` (string) e casa com a propriedade observável.
-
-**Regra geral.** Ao trocar valores entre artefato e agente, alinhar os tipos:
-- inteiro Java ↔ número Jason ✔
-- String Java ↔ string Jason `"..."` (NÃO átomo) ⚠
-- para um átomo, passar um `jason.asSyntax.Term` já pronto (acopla o artefato ao Jason).
+Registro dos **conceitos, decisões de design e lições** encontrados durante o
+desenvolvimento — material para o relatório. (Detalhes de implementação/API/sintaxe
+foram deixados de fora de propósito; eles vivem no próprio código e nos comentários.)
 
 ---
 
-## 2. `hasObsPropertyByTemplate` em vez de `getObsPropertyByTemplate` + null
+## 1. Reserva por artefato compartilhado é atômica → resolve a corrida
 
-**Achado.** `getObsPropertyByTemplate(name, args...)` tem comportamento ambíguo quando
-não há propriedade correspondente (retorno `null` vs. exceção não é óbvio pelo bytecode).
-
-**Correção.** Usar `hasObsPropertyByTemplate(name, args...)` (retorna `boolean`) para
-checar existência antes de definir/remover — evita depender do comportamento ambíguo.
-
-```java
-if (hasObsPropertyByTemplate("reserved", x, y, team)) { ok.set(false); }
-else { defineObsProperty("reserved", x, y, team); ok.set(true); }
-```
+Colocar a reserva de ouro num **artefato compartilhado** (um quadro de avisos), e não
+mediá-la por troca de mensagens entre agentes, faz com que reservar/liberar sejam
+operações **atômicas**. Isso elimina a condição de corrida de dois parceiros reservarem
+a mesma peça ao mesmo tempo. Lição de SMA: **estado compartilhado atômico** é uma forma
+mais simples e robusta de coordenação do que um protocolo de mensagens equivalente.
 
 ---
 
-## 3. Operações de artefato são atômicas → resolvem corrida de reserva
+## 2. Reserva **intra-time**, não global — decisão de design
 
-**Achado / decisão.** Colocar a reserva de ouro num **artefato CArtAgO** (e não mediada
-por mensagens entre agentes) faz com que `reserve`/`release` sejam **atômicas**. Isso
-elimina de graça a condição de corrida de dois parceiros reservando ao mesmo tempo.
+A reserva só bloqueia o **mesmo time**:
 
----
-
-## 4. Reserva **intra-time** (não global) — decisão de design
-
-**Decisão.** `reserve(X,Y,Team)` só falha se o **mesmo time** já reservou a peça.
 - Parceiros da mesma dupla **não colidem** (cooperação intra-time).
 - O outro time **não** é bloqueado → os dois times **disputam** o mesmo ouro (competição
-  inter-time). Coerente com o modelo de coalizões (ver `plan.md`).
+  inter-time).
+
+Coerente com o modelo de coalizões (ver `plan.md`): benevolência dentro do grupo,
+auto-interesse entre grupos. O escopo da reserva é, ele próprio, uma escolha de design
+que codifica a política de cooperação.
 
 ---
 
-## 5. Corrida rara é auto-corrigida pela recuperação de falha existente
+## 3. Corrida rara é auto-corrigida pela recuperação de falha
 
-**Achado.** Não é preciso `if/else` + retry no `handle` para tratar a corrida em que dois
-parceiros escolhem o mesmo ouro no mesmo instante:
-- Caso comum: `choose_gold` já **filtra** o ouro reservado pela dupla.
-- Corrida rara: quem chega segundo **falha no `pick`** (ouro já não está lá) → cai em
-  `-!handle`, que **libera e reescolhe**.
+Não é preciso lógica extra (checagem + retry) para tratar a corrida em que dois parceiros
+escolhem o mesmo ouro no mesmo instante:
 
-Permitiu simplificar o `handle` para o estilo linear (só +2 linhas: `reserve`/`release`),
-mantendo o comportamento (com um custo mínimo: uma viagem à toa no caso raro).
+- Caso comum: a escolha de alvo já **filtra** o ouro reservado pela dupla.
+- Corrida rara: quem chega segundo **falha ao pegar** (o ouro já não está lá) e a
+  recuperação de falha simplesmente **libera e reescolhe**.
 
----
-
-## 6. `.my_name(X)` para identidade e pertencimento
-
-**Achado.** `.my_name(X)` unifica `X` com o nome do próprio agente. Serve tanto para o
-agente saber "sou eu?" (exercício h, comemoração) quanto para **derivar o time** por
-regra sem precisar de configuração externa (Fase 1 do projeto):
-```jason
-team("teamA") :- .my_name(miner1).
-```
+Lição: em BDI, a **recuperação de falha** do próprio ciclo de raciocínio já cobre o caso
+raro — dá para manter o plano linear e simples, ao custo de uma viagem à toa ocasional.
 
 ---
 
-## 7. `.jcm`: bug herdado `dummy.as l`
+## 4. Percepção de ouro é local e persistente
 
-**Achado.** O `gold_miners.jcm` original tinha um typo — `agent miner2 : dummy.as l`
-(espaço no meio de "asl"). Corrigido ao apontar todos os mineradores para `miner1.asl`.
-
----
-
-## 8. Percepção de ouro é local e persistente
-
-**Achado (comportamento do ambiente).** O `MiningPlanet` só publica `cell(X,Y,gold)`
-para as **9 células ao redor** do agente. O minerador guarda como crença própria
-(`+cell(X,Y,gold) <- +gold(X,Y)`), que **persiste** mesmo depois de sair de perto. Ou
-seja: o agente conhece só o ouro que **já viu**, não o mapa todo.
+O ambiente só revela o ouro nas células **ao redor** do agente. O minerador guarda o que
+vê como crença própria, que **persiste** mesmo depois de sair de perto. Ou seja: o agente
+conhece só o ouro que **já viu**, não o mapa todo. Isso torna a **comunicação** entre
+parceiros (compartilhar avistamentos e posições) genuinamente útil — cada agente tem
+informação **parcial** do mundo.
 
 ---
 
-## 10. Divisão de regiões (F3) vs. capacidade (F2): redundância → complementaridade
+## 5. Regiões (estático) vs. capacidade (dinâmico): redundância → complementaridade
 
-**Achado.** Ao introduzir a divisão de regiões (Feature 3), o repasse por capacidade
-(Feature 2) ficou **redundante e desperdiçado**: um agente sobre carga repassava um ouro
-da **própria** região ao parceiro, que — estando na **outra** região — não conseguia
-tratá-lo (só guardava a crença). Visto no log:
-`[miner4] forwarding gold(20,20) to miner3` (gold na região do miner4).
+Ao introduzir a **divisão de regiões**, o **repasse por capacidade** ficou redundante e
+desperdiçado: um agente sobrecarregado repassava um ouro da **própria** região ao
+parceiro, que — estando na **outra** região — não conseguia tratá-lo.
 
-**Consequência conceitual.** A divisão de regiões já faz o balanceamento estático que a
-capacidade buscava; mas **não** faz balanceamento **dinâmico** — se todo o ouro cai numa
-região, um agente afoga e o outro fica ocioso.
+**Consequência conceitual.** A divisão de regiões já faz o balanceamento **estático**;
+mas **não** faz balanceamento **dinâmico** — se todo o ouro cai numa região, um agente
+afoga e o outro fica ocioso.
 
-**Reconciliação adotada.** Separar os dois papéis, tornando-os complementares:
-- **Roteamento (`@pregion`):** ouro percebido **fora** da minha região → repasso ao
-  parceiro (dono daquela região). `.send(P,tell,gold(X,Y))`.
-- **Ajuda entre regiões (`@pcell3`, repropósito da F2):** ouro **da minha** região quando
-  estou sobrecarregado (`in_my_region(X) & C > N`) → peço ao parceiro para cruzar e
-  ajudar. `.send(P,achieve,help(gold(X,Y)))`; o parceiro **ocioso** cruza e trata
-  (o `handle` não checa região), depois volta à sua região no `choose_gold`.
+**Reconciliação.** Separar os dois papéis para serem complementares:
+- **Roteamento:** ouro percebido **fora** da minha região → repasso ao parceiro (dono
+  daquela região).
+- **Ajuda entre regiões:** ouro **da minha** região quando estou sobrecarregado → peço ao
+  parceiro **ocioso** para cruzar e ajudar; depois ele volta à sua região.
 
 Lição: features de coordenação podem se **sobrepor**; vale checar se uma subsome a outra
-e, se sim, redefinir papéis para que sejam complementares (estático + dinâmico).
+e, se sim, redefinir papéis (estático + dinâmico) para que sejam complementares.
 
 ---
 
-## 9. Ambientes (world ids) têm depósitos diferentes
+## 6. Ambientes (mapas) têm depósitos diferentes
 
-**Achado.** `WorldModel`: mapas 1–3 têm depósito em `(0,0)`; mapa 4 e 5 em `(5,27)`;
-mapa 6 em `(16,16)`. Por isso o exercício d) (ler `depot(_,X,Y)` em vez de assumir
-`(0,0)`) só é testável a partir do mapa 4. O id do mundo é o 1º parâmetro de
-`MiningPlanet(id, agId)` no `.jcm`.
-
----
-
-## 11. `.jcm`: injeção de crenças por agente + formato multi-linha obrigatório
-
-**Achado (útil).** O `.jcm` suporta `beliefs: t1, t2, ...` por agente — as crenças
-entram na base do agente no start. Usamos isso para **ligar as flags de ablação por
-agente sem duplicar o `.asl`** (um mecanismo fica OFF simplesmente por estar ausente):
-```
-agent miner1 : miner1.asl {
-    beliefs: use(reservation), use(regions)
-    focus: mining.m1view, mining.goldReg
-}
-```
-Verificado: a ajuda (`@pcell3`) só dispara quando `use(help)` é injetado.
-
-**Armadilha.** O bloco de agente **em uma linha só** quebra o parser:
-`agent miner3 : miner1.asl { focus: ... }` → `ParseException ... Was expecting ":"`.
-Solução: usar sempre o formato **multi-linha** (chaves e cláusulas em linhas próprias),
-como no `gold_miners.jcm`.
-
-**Bônus.** Parametrizamos o `build.gradle` (`args findProperty('jcm') ?: 'gold_miners.jcm'`)
-para rodar qualquer config: `./gradlew run -Pjcm=experiments/exp_c3.jcm`.
+Cada mapa do cenário tem o depósito em uma posição distinta (alguns em `(0,0)`, outros
+não). Por isso o agente deve **consultar** onde é o depósito em vez de assumir uma posição
+fixa — caso contrário só funciona em parte dos mapas. Aprendizado geral: **não hardcodar**
+o que o ambiente já informa.
 
 ---
 
-## 12. Primeira ablação foi subdimensionada (aprendizado metodológico)
+## 7. Tipos precisam casar na fronteira agente ↔ artefato (falha silenciosa)
 
-**Achado.** A primeira bateria (5 configs, mapa 3, 40s, 1 execução cada — ver
+Ao trocar valores entre um artefato e um agente, os **tipos precisam casar**. Um
+identificador que, no lado do artefato, é publicado como texto **não unifica** com um
+símbolo (átomo) do lado do agente. O perigo é que isso **compila e não gera erro** — a
+lógica simplesmente **nunca dispara** em tempo de execução.
+
+Foi o bug mais custoso do projeto: um filtro de reserva que "estava certo" mas não fazia
+efeito. Lição de SMA: na integração entre a dimensão de **agentes** e a de **ambiente**,
+uma incompatibilidade de tipos vira um **erro silencioso** — alinhar os tipos nas duas
+pontas é parte do design, não um detalhe.
+
+---
+
+## 8. A primeira ablação foi subdimensionada (aprendizado metodológico)
+
+A primeira bateria (5 configs, uma execução curta cada — ver
 `experiments/runs/<ts>/report.md`) deu **inconclusiva**: diferenças de ±1–2 entregas,
-dentro do ruído, sem tendência. Causas: contagens minúsculas (3–5), execução única (sem
-média), viés de posição inicial, e **mapa pequeno/esparso** (13 ouros → pouca contenção,
-que é justamente onde a coordenação deveria brilhar).
+dentro do ruído, sem tendência. Causas: contagens minúsculas, execução única (sem média),
+viés de posição inicial e **mapa esparso** (pouca contenção — justamente onde a
+coordenação deveria brilhar).
 
-**Lição.** A infraestrutura de ablação funciona; falta **poder estatístico**: rodadas
-longas (até esgotar o ouro), repetidas (média ± desvio), com papéis dos times trocados
-(cancelar viés) e sob **maior contenção** (mapa denso / mais agentes). Reportar isso
-honestamente é, em si, um bom item de "método e limitações" no relatório.
+Lição: a infraestrutura de ablação funciona; falta **poder estatístico** — rodadas longas
+(até esgotar o ouro), repetidas (média ± desvio), com papéis dos times trocados (cancelar
+viés) e sob **maior contenção**. Reportar isso honestamente é, em si, um bom item de
+"método e limitações" no relatório.
 
 ---
 
@@ -181,23 +117,22 @@ honestamente é, em si, um bom item de "método e limitações" no relatório.
 
 ## Demonstração
 
-- **Como rodar:** `./gradlew run` (mapa id=3, 35×35). GUI com réguas de coordenadas; a
-  saída dos agentes vai para `log/mas-0.log`.
+- **Como rodar:** `./gradlew run` (mapa id=3, 35×35).
 - **O que se vê:** 2 duplas competindo — **Time A azul** (miner1,2), **Time B vermelho**
-  (miner3,4); número do agente fica **amarelo** ao carregar ouro. Depósito em (0,0).
-- **Mensagens que evidenciam a coordenação (no log):** reserva/roteamento (dupla não
-  duplica alvo; times disputam entre si); ajuda (`asking ... to help` / `Crossing to
-  help` / `Busy, can't help`); roteamento dinâmico (troca de posições `at(X,Y)`); placar
-  (`(<time>) I have dropped N`, `Agent A from <time> is winning`).
+  (miner3,4); o número do agente fica **amarelo** ao carregar ouro.
+- **Evidências de coordenação:** a dupla não duplica o mesmo alvo e os times disputam
+  entre si (reserva/roteamento); parceiro ocioso cruza para ajudar o sobrecarregado, e o
+  ocupado recusa (capacidade); parceiros trocam posição e o mais próximo pega o ouro
+  (roteamento dinâmico); o placar por equipe evolui.
 
 ## Método — experimento de ablação
 
-Cada mecanismo é uma **flag** ligável/desligável (todas ON por padrão): `use(reservation)`
-(F1), `use(regions)` (F3a estático), `use(routing)` (F3b dinâmico), `use(help)` (F2).
-Permite **medir a contribuição de cada um** em vez de assumir. Configurações-alvo (rodar
-em vários mapas/seeds, medir `team_score`):
+Cada mecanismo é uma **flag** ligável/desligável (todas ON por padrão): reserva (F1),
+regiões estáticas (F3a), proximidade dinâmica (F3b), ajuda por capacidade (F2). Permite
+**medir a contribuição de cada um** em vez de assumir. Configurações-alvo (Time B sempre
+ingênuo; Time A avança C0→C4), medindo `team_score`:
 
-| Config | reservation | regions | routing | help |
+| Config | reserva | regiões | proximidade | ajuda |
 |---|:--:|:--:|:--:|:--:|
 | Ingênuo (baseline) | ❌ | ❌ | ❌ | ❌ |
 | Só reserva | ✅ | ❌ | ❌ | ❌ |
@@ -205,22 +140,21 @@ em vários mapas/seeds, medir `team_score`):
 | Reserva + proximidade (dinâmico) | ✅ | ❌ | ✅ | ✅ |
 | Tudo | ✅ | ✅ | ✅ | ✅ |
 
-> Métrica ainda a implementar: `team_score` (placar por equipe) para quantificar.
-
 ## Resultados qualitativos (até aqui)
 
 - Reserva intra-dupla **funciona**: sem colisões dentro do time; disputas só entre times.
 - Ajuda entre parceiros **funciona**: parceiro ocioso cruza e ajuda; ocupado recusa.
 - Roteamento dinâmico e estático **coexistem** via flags (comparáveis no experimento).
-- **Quantitativo (qual config vence) ainda não medido** — depende do `team_score`.
+- **Quantitativo (qual config vence) ainda não medido de forma conclusiva** — depende de
+  um experimento com poder estatístico (ver aprendizado #8).
 
 ## Aprendizados (para discussão no relatório)
 
 1. **Contribuição própria vs. base:** toda a coordenação (times, reserva, capacidade,
    regiões, roteamento) é nossa; o tutorial só forneceu a mineração base.
-2. **Features de coordenação podem se sobrepor** (achado técnico #10): a divisão de
-   regiões subsumiu o balanceamento da capacidade → redefinimos a capacidade como
-   *ajuda entre regiões* para serem complementares.
+2. **Features de coordenação podem se sobrepor** (achado #5): a divisão de regiões
+   subsumiu o balanceamento da capacidade → redefinimos a capacidade como *ajuda entre
+   regiões* para serem complementares.
 3. **Divisão estática de regiões é uma proxy fraca** de "otimizar rotas": rígida, força
    detours e desbalanceia. O **roteamento dinâmico por proximidade** (parceiros trocam
    posição, o mais perto pega) cumpre melhor o objetivo de comunicação direta.
