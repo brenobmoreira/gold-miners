@@ -152,7 +152,8 @@ score(0). // how many gold pieces I have dropped at the depot
   <- .print("Handling ",gold(X,Y)," now.");
      !pos(X,Y);
      !ensure(pick,gold(X,Y));
-     !pos(0,0);
+     ?depot(_,DX,DY);
+     !pos(DX,DY);
      !ensure(drop, 0);
      .print("Finish handling ",gold(X,Y));
      ?score(S);
@@ -178,7 +179,7 @@ score(0). // how many gold pieces I have dropped at the depot
 // fail if no gold there or not carrying_gold after pick!
 // handle(G) will "catch" this failure.
 
-+!ensure(drop, _) : carrying_gold & pos(0,0)
++!ensure(drop, _) : carrying_gold & pos(X,Y) & depot(_,X,Y)
   <- drop.
 
 
