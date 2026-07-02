@@ -168,21 +168,34 @@ dimensão do JaCaMo (além de Jason e CArtAgO). Se o tempo apertar, entra como
 
 ## 8. Experimento comparativo (resultado central do relatório)
 
-Com as duas duplas, montamos um experimento controlado:
+**Infraestrutura (implementada):**
+- **Flags de ablação** por agente, injetadas via `beliefs:` no `.jcm`:
+  `use(reservation)` (F1), `use(regions)` (F3a estático), `use(routing)` (F3b dinâmico),
+  `use(help)` (F2). Um mecanismo fica OFF por estar ausente.
+- **Métrica `team_score`** medida no ambiente (`WorldModel.goldsTeamA/B`) e exibida no
+  **placar da UI** (caixinha azul/vermelha).
+- **Arquivos por config** em `experiments/exp_c{0..4}.jcm`; roda com
+  `./gradlew run -Pjcm=experiments/exp_c3.jcm`.
 
-- **Time A** — usa coordenação completa (reserva + recrutamento + rotas).
-- **Time B** — "ingênuo": cada agente por si, sem coordenação (o `miner1.asl` original).
-- Roda-se a simulação e mede-se o **`team_score`** de cada time.
+**Protocolo:** Time B sempre **ingênuo** (sem flags); Time A avança C0→C4, para ver o
+impacto de cada adição:
 
-> **Ordem:** a assimetria (Time B ingênuo) e o `team_score` só entram **depois da
-> Feature 3**. Até lá, os dois times usam a mesma lógica coordenada (bom para
-> desenvolver/depurar as features).
+| Config | reservation | regions | routing | help |
+|---|:--:|:--:|:--:|:--:|
+| C0 | ❌ | ❌ | ❌ | ❌ |
+| C1 | ✅ | ❌ | ❌ | ❌ |
+| C2 | ✅ | ✅ | ❌ | ✅ |
+| C3 | ✅ | ❌ | ✅ | ✅ |
+| C4 | ✅ | ✅ | ✅ | ✅ |
 
-**Hipótese:** o Time A (coordenado) coleta mais ouro que o Time B (ingênuo) no mesmo
-tempo/mapa — prova quantitativa de que a coordenação melhora a eficiência.
+**Resultado da 1ª bateria (2026-07-02): INCONCLUSIVO.** Diferenças dentro do ruído
+(ver `experiments/runs/<ts>/report.md`). Causa: subdimensionado — contagens pequenas,
+execução única, viés de posição inicial e mapa esparso (pouca contenção).
 
-**Variáveis a registrar:** ouro coletado por time, movimentos desperdiçados, colisões
-de alvo evitadas, tempo até esgotar o ouro do mapa. Repetir em múltiplos mapas/seeds.
+**Próximo passo (experimento com poder estatístico):** rodadas longas (até esgotar o
+ouro), N repetições com **média ± desvio**, papéis dos times **trocados** (cancelar
+viés) e **maior contenção** (mapa denso / mais agentes). Métrica: tempo até esgotar o
+ouro, além do `team_score`.
 
 ---
 

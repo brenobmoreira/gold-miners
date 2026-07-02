@@ -139,6 +139,44 @@ mapa 6 em `(16,16)`. Por isso o exercício d) (ler `depot(_,X,Y)` em vez de assu
 
 ---
 
+## 11. `.jcm`: injeção de crenças por agente + formato multi-linha obrigatório
+
+**Achado (útil).** O `.jcm` suporta `beliefs: t1, t2, ...` por agente — as crenças
+entram na base do agente no start. Usamos isso para **ligar as flags de ablação por
+agente sem duplicar o `.asl`** (um mecanismo fica OFF simplesmente por estar ausente):
+```
+agent miner1 : miner1.asl {
+    beliefs: use(reservation), use(regions)
+    focus: mining.m1view, mining.goldReg
+}
+```
+Verificado: a ajuda (`@pcell3`) só dispara quando `use(help)` é injetado.
+
+**Armadilha.** O bloco de agente **em uma linha só** quebra o parser:
+`agent miner3 : miner1.asl { focus: ... }` → `ParseException ... Was expecting ":"`.
+Solução: usar sempre o formato **multi-linha** (chaves e cláusulas em linhas próprias),
+como no `gold_miners.jcm`.
+
+**Bônus.** Parametrizamos o `build.gradle` (`args findProperty('jcm') ?: 'gold_miners.jcm'`)
+para rodar qualquer config: `./gradlew run -Pjcm=experiments/exp_c3.jcm`.
+
+---
+
+## 12. Primeira ablação foi subdimensionada (aprendizado metodológico)
+
+**Achado.** A primeira bateria (5 configs, mapa 3, 40s, 1 execução cada — ver
+`experiments/runs/<ts>/report.md`) deu **inconclusiva**: diferenças de ±1–2 entregas,
+dentro do ruído, sem tendência. Causas: contagens minúsculas (3–5), execução única (sem
+média), viés de posição inicial, e **mapa pequeno/esparso** (13 ouros → pouca contenção,
+que é justamente onde a coordenação deveria brilhar).
+
+**Lição.** A infraestrutura de ablação funciona; falta **poder estatístico**: rodadas
+longas (até esgotar o ouro), repetidas (média ± desvio), com papéis dos times trocados
+(cancelar viés) e sob **maior contenção** (mapa denso / mais agentes). Reportar isso
+honestamente é, em si, um bom item de "método e limitações" no relatório.
+
+---
+
 # Material para o relatório (demonstração, resultados, aprendizados)
 
 ## Demonstração

@@ -1,0 +1,36 @@
+/*
+   Ablation experiment C3 — Team A: reservation + DYNAMIC routing + help ;
+   Team B: naive. Isolates the effect of dynamic nearest-agent assignment
+   (direct comms). Compare against C2 (static regions). Map id=3.
+   Run with:  ./gradlew run -Pjcm=experiments/exp_c3.jcm
+*/
+
+mas exp_c3 {
+    agent leader
+
+    // Team A (blue) — reservation + dynamic routing + help
+    agent miner1 : miner1.asl {
+        beliefs: use(reservation), use(routing), use(help)
+        focus: mining.m1view, mining.goldReg
+    }
+    agent miner2 : miner1.asl {
+        beliefs: use(reservation), use(routing), use(help)
+        focus: mining.m2view, mining.goldReg
+    }
+
+    // Team B (red) — naive
+    agent miner3 : miner1.asl {
+        focus: mining.m3view, mining.goldReg
+    }
+    agent miner4 : miner1.asl {
+        focus: mining.m4view, mining.goldReg
+    }
+
+    workspace mining {
+        artifact m1view: mining.MiningPlanet(3,0)
+        artifact m2view: mining.MiningPlanet(3,1)
+        artifact m3view: mining.MiningPlanet(3,2)
+        artifact m4view: mining.MiningPlanet(3,3)
+        artifact goldReg: mining.GoldRegistry()
+    }
+}

@@ -48,7 +48,8 @@ task run (type: JavaExec, dependsOn: 'classes') {
         mkdir 'log'
     }
     mainClass = 'jacamo.infra.JaCaMoLauncher'
-    args 'gold_miners.jcm'
+    // choose the MAS file with -Pjcm=... (default: gold_miners.jcm)
+    args findProperty('jcm') ?: 'gold_miners.jcm'
     classpath sourceSets.main.runtimeClasspath
 }
 
