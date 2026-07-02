@@ -24,7 +24,8 @@ winning(none,0). // who is currently winning and with how many gold pieces
       +score(A,S+1);
       -dropped[source(A)];
       -+winning(A,S+1);
-      .print("Agent ",A," is winning with ",S+1," pieces of gold").
+      .print("Agent ",A," is winning with ",S+1," pieces of gold");
+      .broadcast(tell,winning(A,S+1)).
 
 +dropped[source(A)] : score(A,S)
    <- -score(A,S);
