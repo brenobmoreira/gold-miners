@@ -28,7 +28,7 @@ TIMEOUT=180               # hard cap per run (seconds)
 OUT="experiments/runs/$TS"
 mkdir -p "$OUT"
 CSV="$OUT/results.csv"
-echo "config,rep,teamA,teamB,total,secs" > "$CSV"
+echo "config,rep,teamA,teamB,total,secs,completed" > "$CSV"
 
 pkill -f "JaCaMoLauncher" 2>/dev/null; sleep 2   # clear any leftovers
 
@@ -36,14 +36,16 @@ run_one() {
   local c="$1" rep="$2"
   rm -f log/mas-*.log
   ./gradlew run -Pjcm="experiments/exp_c${c}.jcm" -q >/dev/null 2>&1 &
-  local t=0 a=0 b=0 tot=0 last=-1 stall=0
+  local t=0 a=0 b=0 tot=0 last=-1 stall=0 done_flag=0
   while [ "$t" -lt "$TIMEOUT" ]; do
     sleep 5; t=$((t+5))
     if [ -f log/mas-0.log ]; then
-      a=$(grep -c "teamA) I have dropped" log/mas-0.log 2>/dev/null)
-      b=$(grep -c "teamB) I have dropped" log/mas-0.log 2>/dev/null)
+      a=$(cat log/mas-*.log 2>/dev/null | grep -c "teamA) I have dropped")
+      b=$(cat log/mas-*.log 2>/dev/null | grep -c "teamB) I have dropped")
       tot=$((a+b))
     fi
+    # the environment ends the game and logs GAME OVER when all gold is collected
+    if grep -qh "GAME OVER" log/mas-*.log 2>/dev/null; then done_flag=1; break; fi
     if [ "$tot" -gt "$last" ]; then last="$tot"; stall=0; else stall=$((stall+5)); fi
     [ "$tot" -ge "$TARGET" ] && break
     [ "$stall" -ge "$STALL" ] && [ "$tot" -gt 0 ] && break
@@ -53,10 +55,14 @@ run_one() {
     wid=$(xwininfo -root -tree 2>/dev/null | grep -i "Mining World" | grep -o '0x[0-9a-f]*' | head -1)
     [ -n "$wid" ] && import -window "$wid" "$OUT/c${c}.png" 2>/dev/null
   fi
+  # kill the MAS reliably: the java child's cmdline does NOT contain the .jcm
+  # path, so pkill on the .jcm alone leaves it alive and it keeps writing to
+  # the shared log -> inflated counts on the next run. Kill the launcher too.
   pkill -f "exp_c${c}.jcm" 2>/dev/null
+  pkill -f "JaCaMoLauncher" 2>/dev/null
   sleep 3
-  echo "c${c},${rep},${a},${b},${tot},${t}" >> "$CSV"
-  echo "c${c} rep${rep}: A=${a} B=${b} total=${tot} in ${t}s"
+  echo "c${c},${rep},${a},${b},${tot},${t},${done_flag}" >> "$CSV"
+  echo "c${c} rep${rep}: A=${a} B=${b} total=${tot} done=${done_flag} in ${t}s"
 }
 
 for rep in $(seq 1 "$REPS"); do
