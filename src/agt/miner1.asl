@@ -215,6 +215,18 @@ score(0). // how many gold pieces I have dropped at the depot
   <- !calc_gold_distance(R,RD).
 
 
+/* Reacting to the winner announced by the leader */
+
+// the leader broadcast that I am the one winning -> brag about it
++winning(A,S)[source(leader)] : .my_name(A)
+   <-  -winning(A,S);
+       .print("I am the greatest!!!").
+
+// the winner is someone else -> just discard the belief
++winning(A,S)[source(leader)] : true
+   <-  -winning(A,S).
+
+
 /* end of a simulation */
 
 +end_of_simulation(S,_) : true
