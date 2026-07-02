@@ -11,6 +11,7 @@
 last_dir(null). // the last movement I did
 free.
 score(0). // how many gold pieces I have dropped at the depot
+capacity(2). // max known gold in my backlog before I ask my partner for help
 
 /* rules */
 /* team membership (Phase 1: derived from the agent name).
@@ -21,6 +22,12 @@ team("teamA") :- .my_name(miner1).
 team("teamA") :- .my_name(miner2).
 team("teamB") :- .my_name(miner3).
 team("teamB") :- .my_name(miner4).
+
+// my partner is the other member of my team
+partner(miner2) :- .my_name(miner1).
+partner(miner1) :- .my_name(miner2).
+partner(miner4) :- .my_name(miner3).
+partner(miner3) :- .my_name(miner4).
 
 
 /* When free, agents wonder around. This is encoded with a plan that executes
@@ -144,6 +151,15 @@ team("teamB") :- .my_name(miner4).
      release(OldX,OldY,T);                // free the abandoned target for my team
      .print("Giving up current gold ",gold(OldX,OldY)," to handle ",gold(X,Y)," which I am seeing!");
      !init_handle(gold(X,Y)).
+
+// I'm busy and my backlog is over my capacity: ask my partner for help by
+// forwarding this freshly perceived gold. Only forward gold I found myself
+// ([source(self)]) so a forwarded piece is never bounced back (no ping-pong).
+@pcell3
++gold(X,Y)[source(self)]
+  :  not free & partner(P) & capacity(N) & .count(gold(_,_),C) & C > N
+  <- .print("Over capacity (",C,">",N,"): forwarding ",gold(X,Y)," to partner ",P);
+     .send(P,tell,gold(X,Y)).
 
 
 /* The next plans encode how to handle a piece of gold.
