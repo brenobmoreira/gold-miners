@@ -12,7 +12,7 @@
 
 mas gold_miners {
     agent leader
-    agent miner1 : miner.asl  {
+    agent miner1 : miner1.asl  {
         focus: mining.m1view
     }
     agent miner2 : dummy.as l {
