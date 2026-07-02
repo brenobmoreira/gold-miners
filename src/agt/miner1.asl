@@ -60,7 +60,7 @@ i_am_closest(X,Y) :- pos(MX,MY) & partner_pos(PX,PY)
  * its belief base, which will trigger the plan to go to a random location again.
  */
 
-+free : gsize(_,W,H) & jia.random(RX,W-1) & jia.random(RY,H-1)
++free : gsize(_,W,H) & jia.random(RX,W) & jia.random(RY,H)
    <-  .print("I am going to go near (",RX,",", RY,")");
        !go_near(RX,RY).
 +free  // gsize is unknown yet
