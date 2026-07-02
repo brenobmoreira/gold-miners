@@ -159,6 +159,7 @@ score(0). // how many gold pieces I have dropped at the depot
      ?score(S);
      -+score(S+1);
      .print("I have dropped ",S+1," pieces of gold");
+     .send(leader,tell,dropped);
      !!choose_gold.
 
 // if ensure(pick/drop) failed, pursue another gold
