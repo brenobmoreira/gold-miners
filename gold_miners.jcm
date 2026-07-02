@@ -34,10 +34,10 @@ mas gold_miners {
         // each agent has its own artifact to interface with the Mining Planet scenario
         // first parameter is the id of the scenario
         // second parameter is the id of the agent in the scenario
-        artifact m1view: mining.MiningPlanet(3,0)
-        artifact m2view: mining.MiningPlanet(3,1)
-        artifact m3view: mining.MiningPlanet(3,2)
-        artifact m4view: mining.MiningPlanet(3,3)
+        artifact m1view: mining.MiningPlanet(4,0)
+        artifact m2view: mining.MiningPlanet(4,1)
+        artifact m3view: mining.MiningPlanet(4,2)
+        artifact m4view: mining.MiningPlanet(4,3)
 
         // shared blackboard for intra-team gold reservation
         artifact goldReg: mining.GoldRegistry()

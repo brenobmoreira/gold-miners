@@ -18,7 +18,7 @@ public class MiningPlanet extends Artifact {
     static WorldView   view;
 
     static int     simId    = 5; // type of environment
-    static int     sleep    = 200;
+    static int     sleep    = 0;   // 0 = max speed (no delay between actions)
     static boolean hasGUI   = true;
 
     int     agId     = -1;

@@ -26,10 +26,10 @@ mas exp_c2 {
     }
 
     workspace mining {
-        artifact m1view: mining.MiningPlanet(3,0)
-        artifact m2view: mining.MiningPlanet(3,1)
-        artifact m3view: mining.MiningPlanet(3,2)
-        artifact m4view: mining.MiningPlanet(3,3)
+        artifact m1view: mining.MiningPlanet(4,0)
+        artifact m2view: mining.MiningPlanet(4,1)
+        artifact m3view: mining.MiningPlanet(4,2)
+        artifact m4view: mining.MiningPlanet(4,3)
         artifact goldReg: mining.GoldRegistry()
     }
 }
