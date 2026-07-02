@@ -45,6 +45,8 @@ public class WorldView extends GridWorldView {
     //JComboBox scenarios;
     JSlider   jSpeed;
     JLabel    jGoldsC;
+    JLabel    jTeamA;
+    JLabel    jTeamB;
 
     @Override
     public void initComponents(int width) {
@@ -113,6 +115,14 @@ public class WorldView extends GridWorldView {
         p.add(jGoldsC);
         msg.add(p);
 
+        // team scoreboard: Team A in blue, Team B in red, with their gold counts
+        p = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        jTeamA = makeTeamBox("Team A", Color.blue);
+        jTeamB = makeTeamBox("Team B", Color.red);
+        p.add(jTeamA);
+        p.add(jTeamB);
+        msg.add(p);
+
         JPanel s = new JPanel(new BorderLayout());
         s.add(BorderLayout.WEST, args);
         s.add(BorderLayout.CENTER, msg);
@@ -170,6 +180,18 @@ public class WorldView extends GridWorldView {
     public void udpateCollectedGolds() {
         WorldModel wm = (WorldModel)model;
         jGoldsC.setText(wm.getGoldsInDepot() + "/" + wm.getInitialNbGolds());
+        if (jTeamA != null) jTeamA.setText("Team A: " + wm.getGoldsTeamA());
+        if (jTeamB != null) jTeamB.setText("Team B: " + wm.getGoldsTeamB());
+    }
+
+    // a colored box (team color background, white text) for the scoreboard
+    private JLabel makeTeamBox(String name, Color color) {
+        JLabel l = new JLabel(name + ": 0");
+        l.setOpaque(true);
+        l.setForeground(Color.white);
+        l.setBackground(color);
+        l.setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));
+        return l;
     }
 
     @Override

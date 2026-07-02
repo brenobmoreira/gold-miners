@@ -19,6 +19,8 @@ public class WorldModel extends GridWorldModel {
     Set<Integer>              agWithGold;  // which agent is carrying gold
     int                       goldsInDepot   = 0;
     int                       initialNbGolds = 0;
+    int                       goldsTeamA     = 0; // delivered by team A (agents 0,1)
+    int                       goldsTeamB     = 0; // delivered by team B (agents 2,3)
 
     private Logger            logger   = Logger.getLogger("jasonTeamSimLocal.mas2j." + WorldModel.class.getName());
 
@@ -63,6 +65,14 @@ public class WorldModel extends GridWorldModel {
 
     public int getGoldsInDepot() {
         return goldsInDepot;
+    }
+
+    public int getGoldsTeamA() {
+        return goldsTeamA;
+    }
+
+    public int getGoldsTeamB() {
+        return goldsTeamB;
     }
 
     public boolean isAllGoldsCollected() {
@@ -143,6 +153,7 @@ public class WorldModel extends GridWorldModel {
         if (isCarryingGold(ag)) {
             if (l.equals(getDepot())) {
                 goldsInDepot++;
+                if (ag < 2) goldsTeamA++; else goldsTeamB++; // agents 0,1 = team A; 2,3 = team B
                 logger.info("Agent " + (ag + 1) + " carried a gold to depot!");
             } else {
                 add(WorldModel.GOLD, l.x, l.y);
