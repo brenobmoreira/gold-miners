@@ -29,6 +29,15 @@ partner(miner1) :- .my_name(miner2).
 partner(miner4) :- .my_name(miner3).
 partner(miner3) :- .my_name(miner4).
 
+// each partner owns half of the map (by column X) to reduce wasted crossings
+region(left)  :- .my_name(miner1).
+region(left)  :- .my_name(miner3).
+region(right) :- .my_name(miner2).
+region(right) :- .my_name(miner4).
+
+in_my_region(X) :- region(left)  & gsize(_,W,_) & X <  W/2.
+in_my_region(X) :- region(right) & gsize(_,W,_) & X >= W/2.
+
 
 /* When free, agents wonder around. This is encoded with a plan that executes
  * when agents become free (which happens initially because of the belief "free"
@@ -131,17 +140,23 @@ partner(miner3) :- .my_name(miner4).
 
 @pgold[atomic]           // atomic: so as not to handle another event until handle gold is initialised
 +gold(X,Y)
-  :  not carrying_gold & free
+  :  not carrying_gold & free & in_my_region(X)
   <- -free;
      .print("Gold perceived: ",gold(X,Y));
      !init_handle(gold(X,Y)).
+
+// gold outside my region -> hand it to my partner (whose region it is)
+@pregion
++gold(X,Y)[source(self)]
+  :  partner(P) & not in_my_region(X)
+  <- .send(P,tell,gold(X,Y)).
 
 // if I see gold and I'm not free but also not carrying gold yet
 // (I'm probably going towards one), abort handle(gold) and pick up
 // this one which is nearer
 @pcell2[atomic]
 +gold(X,Y)
-  :  not carrying_gold & not free & team(T) &
+  :  not carrying_gold & not free & in_my_region(X) & team(T) &
      .desire(handle(gold(OldX,OldY))) &   // I desire to handle another gold which
      pos(AgX,AgY) &
      jia.dist(X,   Y,   AgX,AgY,DNewG) &
@@ -238,7 +253,7 @@ partner(miner3) :- .my_name(miner4).
 // reserved by my own team (partners must not pursue the same target).
 +!choose_gold
   :  gold(_,_) & team(T)
-  <- .findall(gold(X,Y), gold(X,Y) & not reserved(X,Y,T), LG);
+  <- .findall(gold(X,Y), gold(X,Y) & not reserved(X,Y,T) & in_my_region(X), LG);
      !calc_gold_distance(LG,LD);
      .length(LD,LLD); LLD > 0;
      .print("Gold distances: ",LD,LLD);
