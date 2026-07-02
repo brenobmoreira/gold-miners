@@ -170,25 +170,20 @@ team(teamB) :- .my_name(miner4).
 
 +!handle(gold(X,Y))
   :  not free & team(T)
-  <- reserve(X,Y,T,Ok);
-     if (Ok) {
-        .print("Handling ",gold(X,Y)," now.");
-        !pos(X,Y);
-        !ensure(pick,gold(X,Y));
-        ?depot(_,DX,DY);
-        !pos(DX,DY);
-        !ensure(drop, 0);
-        release(X,Y,T);
-        .print("Finish handling ",gold(X,Y));
-        ?score(S);
-        -+score(S+1);
-        .print("I have dropped ",S+1," pieces of gold");
-        .send(leader,tell,dropped);
-        !!choose_gold;
-     } else {
-        .print(gold(X,Y)," is already reserved by my team, choosing another");
-        !!choose_gold;
-     }.
+  <- reserve(X,Y,T,_);   // best-effort: choose_gold already skips reserved gold
+     .print("Handling ",gold(X,Y)," now.");
+     !pos(X,Y);
+     !ensure(pick,gold(X,Y));
+     ?depot(_,DX,DY);
+     !pos(DX,DY);
+     !ensure(drop, 0);
+     release(X,Y,T);
+     .print("Finish handling ",gold(X,Y));
+     ?score(S);
+     -+score(S+1);
+     .print("I have dropped ",S+1," pieces of gold");
+     .send(leader,tell,dropped);
+     !!choose_gold.
 
 // if ensure(pick/drop) failed, release the reservation and pursue another gold
 -!handle(gold(X,Y)) : team(T)
