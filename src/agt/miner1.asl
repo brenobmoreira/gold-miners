@@ -13,7 +13,12 @@ free.
 score(0). // how many gold pieces I have dropped at the depot
 
 /* rules */
-/* this agent program doesn't have any rules */
+/* team membership (Phase 1: derived from the agent name).
+ * Team A = {miner1, miner2}, Team B = {miner3, miner4}. */
+team(teamA) :- .my_name(miner1).
+team(teamA) :- .my_name(miner2).
+team(teamB) :- .my_name(miner3).
+team(teamB) :- .my_name(miner4).
 
 
 /* When free, agents wonder around. This is encoded with a plan that executes
