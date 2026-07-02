@@ -3,9 +3,13 @@ package mining;
 import jason.environment.grid.GridWorldView;
 
 import java.awt.BorderLayout;
+import java.awt.Canvas;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
@@ -45,6 +49,19 @@ public class WorldView extends GridWorldView {
     @Override
     public void initComponents(int width) {
         super.initComponents(width);
+
+        // wrap the grid canvas with coordinate rulers (battleship style):
+        // column numbers at the bottom and row numbers on the left
+        Canvas gridCanvas = getCanvas();
+        getContentPane().remove(gridCanvas);
+        JPanel inner = new JPanel(new BorderLayout());
+        inner.add(BorderLayout.CENTER, gridCanvas);
+        inner.add(BorderLayout.SOUTH, new ColumnRuler());
+        JPanel grid = new JPanel(new BorderLayout());
+        grid.add(BorderLayout.WEST, new RowRuler());
+        grid.add(BorderLayout.CENTER, inner);
+        getContentPane().add(BorderLayout.CENTER, grid);
+
         JPanel args = new JPanel();
         args.setLayout(new BoxLayout(args, BoxLayout.Y_AXIS));
         /*scenarios = new JComboBox();
@@ -205,6 +222,50 @@ public class WorldView extends GridWorldView {
     public void drawEnemy(Graphics g, int x, int y) {
         g.setColor(Color.red);
         g.fillOval(x * cellSizeW + 7, y * cellSizeH + 7, cellSizeW - 8, cellSizeH - 8);
+    }
+
+    private static final Font rulerFont = new Font("Arial", Font.BOLD, 10);
+
+    /** ruler drawn below the grid with the column (X) indexes */
+    class ColumnRuler extends JPanel {
+        ColumnRuler() {
+            setPreferredSize(new Dimension(10, 18));
+            setBackground(Color.white);
+        }
+        @Override
+        public void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            int w = getModel().getWidth();
+            int cw = getCanvas().getWidth() / w;
+            g.setFont(rulerFont);
+            g.setColor(Color.blue);
+            FontMetrics fm = g.getFontMetrics();
+            for (int c = 0; c < w; c++) {
+                String s = String.valueOf(c);
+                g.drawString(s, c * cw + (cw - fm.stringWidth(s)) / 2, fm.getAscent() + 2);
+            }
+        }
+    }
+
+    /** ruler drawn on the left of the grid with the row (Y) indexes */
+    class RowRuler extends JPanel {
+        RowRuler() {
+            setPreferredSize(new Dimension(22, 10));
+            setBackground(Color.white);
+        }
+        @Override
+        public void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            int h = getModel().getHeight();
+            int ch = getCanvas().getHeight() / h;
+            g.setFont(rulerFont);
+            g.setColor(Color.blue);
+            FontMetrics fm = g.getFontMetrics();
+            for (int r = 0; r < h; r++) {
+                String s = String.valueOf(r);
+                g.drawString(s, (getWidth() - fm.stringWidth(s)) / 2, r * ch + (ch + fm.getAscent()) / 2);
+            }
+        }
     }
 
 }
