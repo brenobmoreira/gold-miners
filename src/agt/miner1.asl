@@ -38,11 +38,10 @@ region(right) :- .my_name(miner4).
 in_my_region(X) :- region(left)  & gsize(_,W,_) & X <  W/2.
 in_my_region(X) :- region(right) & gsize(_,W,_) & X >= W/2.
 
-// --- ablation flags (all ON by default, for both teams) ---
-use(reservation). // F1: intra-team gold reservation
-use(regions).     // F3a: static left/right region split
-use(routing).     // F3b: dynamic nearest-agent assignment (direct comms)
-use(help).        // F2: cross-region help under overload
+// --- ablation flags ---
+// use(reservation) F1, use(regions) F3a, use(routing) F3b, use(help) F2.
+// They are NOT asserted here: each MAS config (.jcm) injects the enabled
+// flags per agent via `beliefs:`, so a mechanism is OFF simply by being absent.
 
 // dynamic routing: I take a gold if I'm at least as close as my partner.
 // If I don't know my partner's position yet, assume the gold is mine.

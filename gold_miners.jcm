@@ -12,16 +12,21 @@
 
 mas gold_miners {
     agent leader
+    // default MAS: full coordination for both teams (all flags on)
     agent miner1 : miner1.asl  {
+        beliefs: use(reservation), use(regions), use(routing), use(help)
         focus: mining.m1view, mining.goldReg
     }
     agent miner2 : miner1.asl  {
+        beliefs: use(reservation), use(regions), use(routing), use(help)
         focus: mining.m2view, mining.goldReg
     }
     agent miner3 : miner1.asl  {
+        beliefs: use(reservation), use(regions), use(routing), use(help)
         focus: mining.m3view, mining.goldReg
     }
     agent miner4 : miner1.asl  {
+        beliefs: use(reservation), use(regions), use(routing), use(help)
         focus: mining.m4view, mining.goldReg
     }
 
