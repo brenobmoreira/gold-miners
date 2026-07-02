@@ -62,20 +62,20 @@ que eram mecânica competitiva de indivíduo) e introduzimos um **placar de equi
 O tutorial serviu de aquecimento e entregou os blocos de comunicação/coordenação que
 o projeto final estende. Exercícios concluídos:
 
-| Ex. | O que foi feito | Bloco reutilizável |
+| Ex. | O que foi feito | Conceito reutilizável |
 |---|---|---|
-| a) | Minerador anuncia o destino aleatório sorteado | `.print`, seleção de plano |
-| b) | Distingue "cheguei perto" vs. "alvo inalcançável" | contexto de planos |
-| c) | Minerador conta ouro entregue (`score`) | crença + operador `-+` |
-| d) | Entrega no depósito real via `depot(_,X,Y)` | consulta a crença (`?`) |
-| e) | Minerador reporta entrega ao líder | `.send(leader,tell,dropped)` |
-| f) | Líder anuncia mudança de liderança (`winning`) | comparação `S+1 > SL` |
-| g) | Líder difunde o vencedor a todos | `.broadcast(tell, winning(...))` |
-| h) | Vencedor comemora ao ser notificado | reação a `[source(leader)]`, `.my_name` |
-| i) | Troca para ouro mais próximo visto no caminho | `.desire` / `.drop_desire`, `jia.dist` |
+| a) | Minerador anuncia o destino aleatório sorteado | anúncio; seleção de plano por contexto |
+| b) | Distingue "cheguei perto" vs. "alvo inalcançável" | seleção por contexto do plano |
+| c) | Minerador conta o ouro entregue | atualização de crença |
+| d) | Entrega no depósito real (consultado, não fixo) | consulta a crença |
+| e) | Minerador reporta a entrega ao líder | comunicação agente → agente |
+| f) | Líder anuncia mudança de liderança | comparação de placar |
+| g) | Líder difunde o vencedor a todos | difusão (broadcast) a todos |
+| h) | Vencedor comemora ao ser notificado | reação a mensagem; identidade própria |
+| i) | Troca para o ouro mais próximo visto no caminho | revisão de intenção; distância |
 | j) | (Twitter) — **pulado** (restrição da API do X) | — |
 
-Configuração atual: `leader` + 4 mineradores rodando `miner1.asl`, mapa id=3.
+Configuração atual: 1 líder + 4 mineradores, mapa id=3.
 
 ---
 
@@ -91,54 +91,49 @@ Escopo de cada feature no modelo de duplas:
 - Parceiros **não colidem** (cooperação dentro do time).
 - Os dois times **disputam** o mesmo ouro (corrida inter-time — coerente com a competição).
 
-**Abordagem:** artefato CArtAgO `GoldRegistry` como quadro de avisos, com operações
-atômicas `reserve(X,Y,Team)` / `release(X,Y,Team)` e propriedade observável
-`reserved(X,Y,Team)`. Operações atômicas resolvem a condição de corrida entre parceiros.
+**Abordagem:** um **artefato compartilhado** como quadro de avisos, com operações
+**atômicas** de reservar/liberar uma peça de ouro para um time. A atomicidade resolve a
+condição de corrida entre parceiros. Ao escolher o próximo alvo, o agente filtra o ouro já
+reservado **pela própria dupla**; reserva ao assumir e libera após entregar (ou ao
+trocar/falhar de alvo).
 
-- No `!choose_gold`: filtrar ouros já reservados **pela própria dupla**.
-- No `!handle(gold)`: `reserve` (melhor-esforço) e `release` após entregar.
-- Ao falhar/trocar de alvo: `release`.
+**Reutiliza:** a lógica de escolha de alvo e o padrão de estado compartilhado.
 
-**Reutiliza:** `.findall`, lógica do `choose_gold`, padrão de estado compartilhado.
-
-**Como ficou (implementação real):**
-- `src/env/mining/GoldRegistry.java` — artefato com `reserve`/`release` (usa
-  `hasObsPropertyByTemplate`).
-- Times por regra de crença **string** (`team("teamA") :- .my_name(miner1).` etc.) —
-  string (não átomo!) para casar com a propriedade observável (ver `discover.md` #1).
-- `handle` mantido linear (estilo professor): a corrida rara é auto-corrigida pela
-  recuperação de falha, então dispensa `if/else` + retry (ver `discover.md` #5).
-- **Visibilidade de time nas mensagens:** o minerador marca seus prints com o time e
-  envia `dropped(Team)` ao líder; o líder anuncia "Agent A from Team ...".
-- Verificada em execução (`./gradlew run`, mapa id=3): sem colisões intra-dupla,
-  disputas apenas inter-time, sem exceções.
-- Achados técnicos documentados em `discover.md`.
+**Como ficou:**
+- Reserva **intra-dupla** via artefato compartilhado; o time é derivado do próprio nome
+  do agente (decisões e armadilhas em `discover.md`).
+- Plano de tratamento mantido **linear e simples** (estilo do professor): a corrida rara
+  é auto-corrigida pela recuperação de falha, dispensando checagem + retry.
+- **Visibilidade de time nas mensagens:** o minerador marca seus anúncios com o time e
+  reporta a entrega ao líder, que anuncia o time do agente.
+- Verificada em execução (mapa id=3): sem colisões intra-dupla, disputas apenas
+  inter-time, sem exceções.
 
 ### Feature 2 — Gerenciamento de capacidade (recrutar o parceiro) — 🔜 branch feat2
 
 **Problema:** se a carga de ouro conhecida ultrapassa o limite individual, acionar o parceiro.
 
-**Abordagem (simples, à prova de loop):** limiar `capacity(N)` por agente e regra
-`partner(P)` (o outro membro da dupla). Quando o minerador está **ocupado** (`not free`)
-e sua carga conhecida passa de `N`, ele **repassa** o ouro recém-percebido ao parceiro
-com `.send(P, tell, gold(X,Y))`.
+**Abordagem (simples, à prova de loop):** um **limiar de capacidade** por agente e a
+noção de **parceiro** (o outro membro da dupla). Quando o minerador está **ocupado** e sua
+carga conhecida passa do limiar, ele **repassa** o ouro recém-percebido ao parceiro.
 
-- O parceiro **ocioso** reage (plano `@pgold` existente) e vai minerar → recrutamento.
-- O parceiro **ocupado** só guarda a crença (considera no próximo `choose_gold`).
-- **Guarda contra ping-pong:** só repassa ouro de origem própria
-  (`+gold(X,Y)[source(self)]`), nunca o que veio do parceiro.
+- O parceiro **ocioso** reage e vai minerar → recrutamento.
+- O parceiro **ocupado** só guarda a informação (considera na próxima escolha de alvo).
+- **Guarda contra ping-pong:** só repassa ouro que ele mesmo percebeu, nunca o que veio
+  do parceiro.
 - A **reserva** (Feature 1) evita que os dois tratem o mesmo ouro repassado.
 
-**Reutiliza:** `.send` (e), reação a crenças (h), `.count` para o limiar, artefato de reserva.
+**Reutiliza:** comunicação agente→agente (e), reação a mensagens (h), contagem de carga,
+artefato de reserva.
 
 ### Feature 3 — Comunicação direta de rotas (intra-dupla)
 
 **Problema:** parceiros cruzando caminhos ou indo à mesma região.
 
-**Abordagem:** parceiros trocam `pos`/`target` via `.send` e usam `jia.dist` para dividir
-regiões ou ceder alvos. Refinamento em cima da Feature 1.
+**Abordagem:** parceiros **trocam posição/alvo** e usam **distância** para dividir regiões
+ou ceder alvos ao que estiver mais perto. Refinamento em cima da Feature 1.
 
-**Reutiliza:** `.send`, `jia.dist`, artefato de reserva.
+**Reutiliza:** comunicação agente→agente, cálculo de distância, artefato de reserva.
 
 ### Ordem de implementação
 
@@ -169,13 +164,13 @@ dimensão do JaCaMo (além de Jason e CArtAgO). Se o tempo apertar, entra como
 ## 8. Experimento comparativo (resultado central do relatório)
 
 **Infraestrutura (implementada):**
-- **Flags de ablação** por agente, injetadas via `beliefs:` no `.jcm`:
-  `use(reservation)` (F1), `use(regions)` (F3a estático), `use(routing)` (F3b dinâmico),
-  `use(help)` (F2). Um mecanismo fica OFF por estar ausente.
-- **Métrica `team_score`** medida no ambiente (`WorldModel.goldsTeamA/B`) e exibida no
-  **placar da UI** (caixinha azul/vermelha).
-- **Arquivos por config** em `experiments/exp_c{0..4}.jcm`; roda com
-  `./gradlew run -Pjcm=experiments/exp_c3.jcm`.
+- **Flags de ablação** por agente (reserva F1, regiões estáticas F3a, proximidade
+  dinâmica F3b, ajuda por capacidade F2): cada mecanismo pode ser ligado/desligado por
+  agente e fica OFF por estar ausente.
+- **Métrica `team_score`** medida no ambiente e exibida no **placar da UI**
+  (caixinha azul/vermelha).
+- **Um arquivo por configuração** em `experiments/`, rodável individualmente
+  (`./gradlew run -Pjcm=experiments/exp_c3.jcm`).
 
 **Protocolo:** Time B sempre **ingênuo** (sem flags); Time A avança C0→C4, para ver o
 impacto de cada adição:
@@ -204,18 +199,19 @@ ouro, além do `team_score`.
 Definição de Wooldridge: *agente inteligente = ação autônoma flexível; flexível =
 reativo + pró-ativo + social.*
 
-| Propriedade | Onde aparece no código |
+| Propriedade | Onde aparece no comportamento |
 |---|---|
-| Autonomia | cada minerador roda seu próprio ciclo de raciocínio; escolhe o que fazer |
-| Reatividade | `+cell(X,Y,gold)`, `+gold(X,Y)`, `+winning(...)`, `+end_of_simulation` |
-| Pró-atividade | `!choose_gold`, `!handle`, `!pos`; vaguear para descobrir ouro |
-| Habilidade social | `.send`, `.broadcast`, reações a `[source(leader)]` |
+| Autonomia | cada minerador roda seu próprio ciclo de raciocínio e escolhe o que fazer |
+| Reatividade | reage a percepções (avistar ouro, fim da simulação) e a mensagens (quem está ganhando) |
+| Pró-atividade | persegue metas (escolher e tratar o ouro, ir a uma posição); vagueia para descobrir ouro |
+| Habilidade social | comunica-se com parceiros e líder e reage a mensagens de outros agentes |
 
-**Conceitos BDI no código:**
-- **Beliefs:** `free`, `gold(X,Y)`, `pos`, `score`, `winning`, `depot`, `team(...)`.
-- **Desires/metas:** `!go_near`, `!handle`, `!choose_gold`, `!pos`.
-- **Intentions:** metas em execução; manipuladas por `.desire` / `.drop_desire` /
-  `.drop_all_desires` (raciocínio meta-nível — o agente lida com as próprias intenções).
+**Conceitos BDI no comportamento:**
+- **Beliefs:** estado do agente (livre/ocupado, ouro conhecido, posição, placar, quem
+  está ganhando, depósito, time).
+- **Desires/metas:** ir para perto, tratar o ouro, escolher o próximo alvo.
+- **Intentions:** metas em execução; o agente manipula as **próprias intenções**
+  (raciocínio meta-nível) ao trocar de alvo quando aparece um ouro melhor.
 
 **Raciocínio prático vs. teórico:**
 - Teórico (o que é verdade): revisão de crenças a partir das percepções.
@@ -236,5 +232,5 @@ reativo + pró-ativo + social.*
   para `log/mas-0.log`, não para o stdout).
 - **Branches:** cada feature na sua branch (`feat1`, `feat2`, ...), commits granulares;
   ao concluir e verificar, faz-se merge na `master`.
-- **`discover.md`** reúne os achados técnicos (armadilhas JaCaMo/Jason/CArtAgO) — material
-  para a seção de "dificuldades/lições" do relatório.
+- **`discover.md`** reúne os achados conceituais e aprendizados — material para a seção de
+  "dificuldades/lições" do relatório.
