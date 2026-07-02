@@ -191,13 +191,21 @@ i_am_closest(X,Y) :- pos(MX,MY) & partner_pos(PX,PY)
      .print("Giving up current gold ",gold(OldX,OldY)," to handle ",gold(X,Y)," which I am seeing!");
      !init_handle(gold(X,Y)).
 
-// my region is overloaded (more known gold than my capacity): ask my partner
-// to cross into my region and help with this piece. Only for gold in my own
-// region ([source(self)] avoids ping-pong); out-of-region gold is routed by
+// my actionable backlog is over capacity: ask my partner to help with this
+// piece. Only for gold that is actually mine to handle -- not reserved and (if
+// regions are on) in my own region; the backlog count uses the same filter, so
+// "overloaded" means more actionable pieces than my capacity, not just more
+// known gold. [source(self)] avoids ping-pong; out-of-region gold is routed by
 // @pregion instead.
 @pcell3
 +gold(X,Y)[source(self)]
-  :  use(help) & not free & partner(P) & capacity(N) & .count(gold(_,_),C) & C > N
+  :  use(help) & not free & partner(P) & team(T) & capacity(N)
+     & (not use(reservation) | not reserved(X,Y,T))
+     & (not use(regions)     | in_my_region(X))
+     & .count(   gold(GX,GY)
+               & (not use(reservation) | not reserved(GX,GY,T))
+               & (not use(regions)     | in_my_region(GX)), C)
+     & C > N
   <- .print("Over capacity (",C,">",N,"): asking ",P," to help with ",gold(X,Y));
      .send(P,achieve,help(gold(X,Y))).
 
