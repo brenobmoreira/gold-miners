@@ -183,13 +183,11 @@ public class WorldView extends GridWorldView {
 
     @Override
     public void drawAgent(Graphics g, int x, int y, Color c, int id) {
-        Color idColor = Color.black;
-        if (((WorldModel)model).isCarryingGold(id)) {
-            super.drawAgent(g, x, y, Color.yellow, -1);
-        } else {
-            super.drawAgent(g, x, y, c, -1);
-            idColor = Color.white;
-        }
+        // team colors: team A (miner1,2 -> id 0,1) blue, team B (miner3,4 -> id 2,3) red
+        Color teamColor = (id < 2) ? Color.blue : Color.red;
+        super.drawAgent(g, x, y, teamColor, -1);
+        // the id number turns yellow while the agent is carrying gold
+        Color idColor = ((WorldModel)model).isCarryingGold(id) ? Color.yellow : Color.white;
         g.setColor(idColor);
         drawString(g, x, y, defaultFont, String.valueOf(id+1));
     }
