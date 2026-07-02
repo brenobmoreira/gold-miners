@@ -136,3 +136,56 @@ e, se sim, redefinir papéis para que sejam complementares (estático + dinâmic
 mapa 6 em `(16,16)`. Por isso o exercício d) (ler `depot(_,X,Y)` em vez de assumir
 `(0,0)`) só é testável a partir do mapa 4. O id do mundo é o 1º parâmetro de
 `MiningPlanet(id, agId)` no `.jcm`.
+
+---
+
+# Material para o relatório (demonstração, resultados, aprendizados)
+
+## Demonstração
+
+- **Como rodar:** `./gradlew run` (mapa id=3, 35×35). GUI com réguas de coordenadas; a
+  saída dos agentes vai para `log/mas-0.log`.
+- **O que se vê:** 2 duplas competindo — **Time A azul** (miner1,2), **Time B vermelho**
+  (miner3,4); número do agente fica **amarelo** ao carregar ouro. Depósito em (0,0).
+- **Mensagens que evidenciam a coordenação (no log):** reserva/roteamento (dupla não
+  duplica alvo; times disputam entre si); ajuda (`asking ... to help` / `Crossing to
+  help` / `Busy, can't help`); roteamento dinâmico (troca de posições `at(X,Y)`); placar
+  (`(<time>) I have dropped N`, `Agent A from <time> is winning`).
+
+## Método — experimento de ablação
+
+Cada mecanismo é uma **flag** ligável/desligável (todas ON por padrão): `use(reservation)`
+(F1), `use(regions)` (F3a estático), `use(routing)` (F3b dinâmico), `use(help)` (F2).
+Permite **medir a contribuição de cada um** em vez de assumir. Configurações-alvo (rodar
+em vários mapas/seeds, medir `team_score`):
+
+| Config | reservation | regions | routing | help |
+|---|:--:|:--:|:--:|:--:|
+| Ingênuo (baseline) | ❌ | ❌ | ❌ | ❌ |
+| Só reserva | ✅ | ❌ | ❌ | ❌ |
+| Reserva + regiões (estático) | ✅ | ✅ | ❌ | ✅ |
+| Reserva + proximidade (dinâmico) | ✅ | ❌ | ✅ | ✅ |
+| Tudo | ✅ | ✅ | ✅ | ✅ |
+
+> Métrica ainda a implementar: `team_score` (placar por equipe) para quantificar.
+
+## Resultados qualitativos (até aqui)
+
+- Reserva intra-dupla **funciona**: sem colisões dentro do time; disputas só entre times.
+- Ajuda entre parceiros **funciona**: parceiro ocioso cruza e ajuda; ocupado recusa.
+- Roteamento dinâmico e estático **coexistem** via flags (comparáveis no experimento).
+- **Quantitativo (qual config vence) ainda não medido** — depende do `team_score`.
+
+## Aprendizados (para discussão no relatório)
+
+1. **Contribuição própria vs. base:** toda a coordenação (times, reserva, capacidade,
+   regiões, roteamento) é nossa; o tutorial só forneceu a mineração base.
+2. **Features de coordenação podem se sobrepor** (achado técnico #10): a divisão de
+   regiões subsumiu o balanceamento da capacidade → redefinimos a capacidade como
+   *ajuda entre regiões* para serem complementares.
+3. **Divisão estática de regiões é uma proxy fraca** de "otimizar rotas": rígida, força
+   detours e desbalanceia. O **roteamento dinâmico por proximidade** (parceiros trocam
+   posição, o mais perto pega) cumpre melhor o objetivo de comunicação direta.
+4. **Ceticismo guia o método:** não assumir que um mecanismo ajuda — medir por ablação.
+5. **Cooperação vs. competição:** o cenário-base é competitivo (placar individual);
+   reenquadramos como **coalizões** (cooperação intra-dupla, competição inter-dupla).
