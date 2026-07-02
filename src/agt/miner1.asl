@@ -183,8 +183,8 @@ team("teamB") :- .my_name(miner4).
      .print("Finish handling ",gold(X,Y));
      ?score(S);
      -+score(S+1);
-     .print("I have dropped ",S+1," pieces of gold");
-     .send(leader,tell,dropped);
+     .print("(",T,") I have dropped ",S+1," pieces of gold");
+     .send(leader,tell,dropped(T));
      !!choose_gold.
 
 // if ensure(pick/drop) failed, release the reservation and pursue another gold
