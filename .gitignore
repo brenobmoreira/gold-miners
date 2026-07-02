@@ -1,0 +1,10 @@
+# Build output
+/build/
+/bin/
+/log/
+
+# Gradle
+/.gradle/
+
+# OS
+.DS_Store
