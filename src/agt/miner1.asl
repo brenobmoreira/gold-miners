@@ -151,13 +151,17 @@ i_am_closest(X,Y) :- pos(MX,MY) & partner_pos(PX,PY)
 
 // --- flag-gated helpers ---
 // reservation (F1): only reserve/release when the flag is on
-+!try_reserve(X,Y,T) : use(reservation) <- reserve(X,Y,T,_).
++!try_reserve(X,Y,T) : use(reservation)
+  <- reserve(X,Y,T,R);
+     .print("[F1 reserva] reservei ",gold(X,Y)," para ",T," (concedido=",R,")").
 +!try_reserve(_,_,_) : true <- true.
 +!try_release(X,Y,T) : use(reservation) <- release(X,Y,T).
 +!try_release(_,_,_) : true <- true.
 
 // dynamic routing (F3b): share my position with my partner (direct comms)
-+!share_pos : use(routing) & partner(P) & pos(MX,MY) <- .send(P,tell,at(MX,MY)).
++!share_pos : use(routing) & partner(P) & pos(MX,MY)
+  <- .print("[F3b rota] compartilhando minha posicao (",MX,",",MY,") com ",P);
+     .send(P,tell,at(MX,MY)).
 +!share_pos : true <- true.
 // remember my partner's last shared position
 +at(X,Y)[source(P)] : partner(P) <- -+partner_pos(X,Y).
@@ -173,7 +177,8 @@ i_am_closest(X,Y) :- pos(MX,MY) & partner_pos(PX,PY)
 @pregion
 +gold(X,Y)[source(self)]
   :  use(regions) & partner(P) & not in_my_region(X)
-  <- .send(P,tell,gold(X,Y)).
+  <- .print("[F3a regioes] ",gold(X,Y)," fora da minha regiao -> repasso a ",P);
+     .send(P,tell,gold(X,Y)).
 
 // if I see gold and I'm not free but also not carrying gold yet
 // (I'm probably going towards one), abort handle(gold) and pick up
@@ -206,17 +211,17 @@ i_am_closest(X,Y) :- pos(MX,MY) & partner_pos(PX,PY)
                & (not use(reservation) | not reserved(GX,GY,T))
                & (not use(regions)     | in_my_region(GX)), C)
      & C > N
-  <- .print("Over capacity (",C,">",N,"): asking ",P," to help with ",gold(X,Y));
+  <- .print("[F2 ajuda] acima da capacidade (",C,">",N,"): pedindo ajuda a ",P," com ",gold(X,Y));
      .send(P,achieve,help(gold(X,Y))).
 
 // partner asked for help: cross into its region and handle the gold if I'm
 // idle (handle itself does not check region); if busy, decline.
 +!help(gold(X,Y)) : free
   <- -free;
-     .print("Crossing to help my partner with ",gold(X,Y));
+     .print("[F2 ajuda] cruzando para ajudar meu parceiro com ",gold(X,Y));
      !init_handle(gold(X,Y)).
 +!help(gold(X,Y)) : not free
-  <- .print("Busy, can't help my partner with ",gold(X,Y)," right now").
+  <- .print("[F2 ajuda] ocupado, nao posso ajudar com ",gold(X,Y)," agora").
 
 
 /* The next plans encode how to handle a piece of gold.
@@ -338,5 +343,5 @@ i_am_closest(X,Y) :- pos(MX,MY) & partner_pos(PX,PY)
   <- .drop_all_desires;
      .abolish(gold(_,_));
      .abolish(picked(_));
-     -+free;
-     .print("-- END ",S," --").
+     -free;   // do NOT re-wander: all gold collected, the game is over
+     .print("-- FIM da simulacao ",S," -- todo o ouro foi coletado, parando.").
