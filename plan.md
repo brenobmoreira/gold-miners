@@ -83,7 +83,7 @@ Configuração atual: `leader` + 4 mineradores rodando `miner1.asl`, mapa id=3.
 
 Escopo de cada feature no modelo de duplas:
 
-### Feature 1 — Reserva de tarefas (intra-dupla)
+### Feature 1 — Reserva de tarefas (intra-dupla) — ✅ CONCLUÍDA (branch feat1)
 
 **Problema:** parceiros da mesma dupla podem perseguir o mesmo ouro — desperdício.
 
@@ -96,20 +96,40 @@ atômicas `reserve(X,Y,Team)` / `release(X,Y,Team)` e propriedade observável
 `reserved(X,Y,Team)`. Operações atômicas resolvem a condição de corrida entre parceiros.
 
 - No `!choose_gold`: filtrar ouros já reservados **pela própria dupla**.
-- Antes de `!handle(gold)`: `reserve(X,Y,MeuTime)` (se falhar, escolher outro).
-- Ao entregar/desistir: `release(X,Y,MeuTime)`.
+- No `!handle(gold)`: `reserve` (melhor-esforço) e `release` após entregar.
+- Ao falhar/trocar de alvo: `release`.
 
 **Reutiliza:** `.findall`, lógica do `choose_gold`, padrão de estado compartilhado.
 
-### Feature 2 — Gerenciamento de capacidade (recrutar o parceiro)
+**Como ficou (implementação real):**
+- `src/env/mining/GoldRegistry.java` — artefato com `reserve`/`release` (usa
+  `hasObsPropertyByTemplate`).
+- Times por regra de crença **string** (`team("teamA") :- .my_name(miner1).` etc.) —
+  string (não átomo!) para casar com a propriedade observável (ver `discover.md` #1).
+- `handle` mantido linear (estilo professor): a corrida rara é auto-corrigida pela
+  recuperação de falha, então dispensa `if/else` + retry (ver `discover.md` #5).
+- **Visibilidade de time nas mensagens:** o minerador marca seus prints com o time e
+  envia `dropped(Team)` ao líder; o líder anuncia "Agent A from Team ...".
+- Verificada em execução (`./gradlew run`, mapa id=3): sem colisões intra-dupla,
+  disputas apenas inter-time, sem exceções.
+- Achados técnicos documentados em `discover.md`.
+
+### Feature 2 — Gerenciamento de capacidade (recrutar o parceiro) — 🔜 branch feat2
 
 **Problema:** se a carga de ouro conhecida ultrapassa o limite individual, acionar o parceiro.
 
-**Abordagem:** Contract-Net simplificado, **dentro da dupla**. Ao detectar fila de ouro
-conhecido acima de um limiar `capacity(N)`, o agente faz `.send(Parceiro, tell, help_needed(...))`.
-O parceiro ocioso (`free`) reage com `+help_needed(...)` e assume parte da carga.
+**Abordagem (simples, à prova de loop):** limiar `capacity(N)` por agente e regra
+`partner(P)` (o outro membro da dupla). Quando o minerador está **ocupado** (`not free`)
+e sua carga conhecida passa de `N`, ele **repassa** o ouro recém-percebido ao parceiro
+com `.send(P, tell, gold(X,Y))`.
 
-**Reutiliza:** `.send` (e), reação a crenças (h), lógica de limiar (f).
+- O parceiro **ocioso** reage (plano `@pgold` existente) e vai minerar → recrutamento.
+- O parceiro **ocupado** só guarda a crença (considera no próximo `choose_gold`).
+- **Guarda contra ping-pong:** só repassa ouro de origem própria
+  (`+gold(X,Y)[source(self)]`), nunca o que veio do parceiro.
+- A **reserva** (Feature 1) evita que os dois tratem o mesmo ouro repassado.
+
+**Reutiliza:** `.send` (e), reação a crenças (h), `.count` para o limiar, artefato de reserva.
 
 ### Feature 3 — Comunicação direta de rotas (intra-dupla)
 
@@ -151,8 +171,12 @@ dimensão do JaCaMo (além de Jason e CArtAgO). Se o tempo apertar, entra como
 Com as duas duplas, montamos um experimento controlado:
 
 - **Time A** — usa coordenação completa (reserva + recrutamento + rotas).
-- **Time B** — "ingênuo": cada agente por si, sem coordenação (o `miner1.asl` atual).
+- **Time B** — "ingênuo": cada agente por si, sem coordenação (o `miner1.asl` original).
 - Roda-se a simulação e mede-se o **`team_score`** de cada time.
+
+> **Ordem:** a assimetria (Time B ingênuo) e o `team_score` só entram **depois da
+> Feature 3**. Até lá, os dois times usam a mesma lógica coordenada (bom para
+> desenvolver/depurar as features).
 
 **Hipótese:** o Time A (coordenado) coleta mais ouro que o Time B (ingênuo) no mesmo
 tempo/mapa — prova quantitativa de que a coordenação melhora a eficiência.
@@ -195,6 +219,9 @@ reativo + pró-ativo + social.*
 
 ## 10. Notas de execução
 
-- Rodar: `./gradlew run` (o usuário sempre executa; abre a GUI com réguas de coordenadas).
-- Desenvolver o projeto final num branch `projeto-final`, mantendo o tutorial concluído
-  intacto na `master`.
+- Rodar: `./gradlew run` (abre a GUI com réguas de coordenadas; a saída dos agentes vai
+  para `log/mas-0.log`, não para o stdout).
+- **Branches:** cada feature na sua branch (`feat1`, `feat2`, ...), commits granulares;
+  ao concluir e verificar, faz-se merge na `master`.
+- **`discover.md`** reúne os achados técnicos (armadilhas JaCaMo/Jason/CArtAgO) — material
+  para a seção de "dificuldades/lições" do relatório.
