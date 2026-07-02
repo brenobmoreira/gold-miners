@@ -79,7 +79,7 @@ public class WorldView extends GridWorldView {
         jSpeed = new JSlider();
         jSpeed.setMinimum(0);
         jSpeed.setMaximum(400);
-        jSpeed.setValue(50);
+        jSpeed.setValue(0);   // start at max speed (matches MiningPlanet.sleep = 0)
         jSpeed.setPaintTicks(true);
         jSpeed.setPaintLabels(true);
         jSpeed.setMajorTickSpacing(100);
