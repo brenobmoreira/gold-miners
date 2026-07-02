@@ -132,13 +132,14 @@ team(teamB) :- .my_name(miner4).
 // this one which is nearer
 @pcell2[atomic]
 +gold(X,Y)
-  :  not carrying_gold & not free &
+  :  not carrying_gold & not free & team(T) &
      .desire(handle(gold(OldX,OldY))) &   // I desire to handle another gold which
      pos(AgX,AgY) &
      jia.dist(X,   Y,   AgX,AgY,DNewG) &
      jia.dist(OldX,OldY,AgX,AgY,DOldG) &
      DNewG < DOldG                        // is farther than the one just perceived
   <- .drop_desire(handle(gold(OldX,OldY)));
+     release(OldX,OldY,T);                // free the abandoned target for my team
      .print("Giving up current gold ",gold(OldX,OldY)," to handle ",gold(X,Y)," which I am seeing!");
      !init_handle(gold(X,Y)).
 
@@ -168,27 +169,32 @@ team(teamB) :- .my_name(miner4).
      !!handle(Gold). // must use !! to perform "handle" as not atomic
 
 +!handle(gold(X,Y))
-  :  not free
-  <- .print("Handling ",gold(X,Y)," now.");
-     !pos(X,Y);
-     !ensure(pick,gold(X,Y));
-     ?depot(_,DX,DY);
-     !pos(DX,DY);
-     !ensure(drop, 0);
-     .print("Finish handling ",gold(X,Y));
-     ?score(S);
-     -+score(S+1);
-     .print("I have dropped ",S+1," pieces of gold");
-     .send(leader,tell,dropped);
-     !!choose_gold.
+  :  not free & team(T)
+  <- reserve(X,Y,T,Ok);
+     if (Ok) {
+        .print("Handling ",gold(X,Y)," now.");
+        !pos(X,Y);
+        !ensure(pick,gold(X,Y));
+        ?depot(_,DX,DY);
+        !pos(DX,DY);
+        !ensure(drop, 0);
+        release(X,Y,T);
+        .print("Finish handling ",gold(X,Y));
+        ?score(S);
+        -+score(S+1);
+        .print("I have dropped ",S+1," pieces of gold");
+        .send(leader,tell,dropped);
+        !!choose_gold;
+     } else {
+        .print(gold(X,Y)," is already reserved by my team, choosing another");
+        !!choose_gold;
+     }.
 
-// if ensure(pick/drop) failed, pursue another gold
--!handle(G) : G
-  <- .print("failed to catch gold ",G);
-     .abolish(G); // ignore source
-     !!choose_gold.
--!handle(G) : true
-  <- .print("failed to handle ",G,", it isn't in the BB anyway");
+// if ensure(pick/drop) failed, release the reservation and pursue another gold
+-!handle(gold(X,Y)) : team(T)
+  <- release(X,Y,T);
+     .print("failed to handle ",gold(X,Y));
+     .abolish(gold(X,Y)); // ignore source
      !!choose_gold.
 
 /* The next plans deal with picking up and dropping gold. */
@@ -215,9 +221,11 @@ team(teamB) :- .my_name(miner4).
 
 // Finished one gold, but others left
 // find the closest gold among the known options,
+// Finished one gold, but others left: find the closest one NOT already
+// reserved by my own team (partners must not pursue the same target).
 +!choose_gold
-  :  gold(_,_)
-  <- .findall(gold(X,Y),gold(X,Y),LG);
+  :  gold(_,_) & team(T)
+  <- .findall(gold(X,Y), gold(X,Y) & not reserved(X,Y,T), LG);
      !calc_gold_distance(LG,LD);
      .length(LD,LLD); LLD > 0;
      .print("Gold distances: ",LD,LLD);
