@@ -20,6 +20,7 @@ public class MiningPlanet extends Artifact {
     static int     simId    = 5; // type of environment
     static int     sleep    = 0;   // 0 = max speed (no delay between actions)
     static boolean hasGUI   = true;
+    static boolean ended    = false; // true once all gold has been collected
 
     int     agId     = -1;
 
@@ -69,6 +70,7 @@ public class MiningPlanet extends Artifact {
 
     public synchronized void initWorld(int w) {
         simId = w;
+        ended = false;
         try {
             if (model == null) {
                 switch (w) {
@@ -131,7 +133,37 @@ public class MiningPlanet extends Artifact {
         updateAgPercept(l.x + 1, l.y);
         updateAgPercept(l.x + 1, l.y + 1);
 
+        checkEndGame();
+
         //view.update();
+    }
+
+    /**
+     * End the game once every piece of gold has been delivered. Runs after each
+     * agent action, so each agent perceives the end within one step of its own.
+     * The end is exposed as an observable property on THIS agent's artifact
+     * (each miner focuses its own MiningPlanet), and a single GAME OVER line
+     * with the final team scores is logged the first time it is detected.
+     */
+    private void checkEndGame() {
+        if (model == null || model.getInitialNbGolds() <= 0) return;
+        if (!model.isAllGoldsCollected()) return;
+
+        if (!hasObsProperty("end_of_simulation")) {
+            defineObsProperty("end_of_simulation", simId, 0);
+        }
+        synchronized (MiningPlanet.class) {
+            if (!ended) {
+                ended = true;
+                int a = model.getGoldsTeamA();
+                int b = model.getGoldsTeamB();
+                String winner = (a > b) ? "Team A" : (b > a) ? "Team B" : "Tie";
+                logger.info("=== GAME OVER: all " + model.getInitialNbGolds()
+                    + " gold collected. Team A=" + a + " Team B=" + b
+                    + " -> winner: " + winner + " ===");
+                if (view != null) view.udpateCollectedGolds();
+            }
+        }
     }
 
     private static Term gold     = new Atom("gold");
