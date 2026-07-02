@@ -15,13 +15,13 @@ mas gold_miners {
     agent miner1 : miner1.asl  {
         focus: mining.m1view
     }
-    agent miner2 : dummy.as l {
+    agent miner2 : miner1.asl  {
         focus: mining.m2view
     }
-    agent miner3 : dummy.asl  {
+    agent miner3 : miner1.asl  {
         focus: mining.m3view
     }
-    agent miner4 : dummy.asl  {
+    agent miner4 : miner1.asl  {
         focus: mining.m4view
     }
 
@@ -29,10 +29,10 @@ mas gold_miners {
         // each agent has its own artifact to interface with the Mining Planet scenario
         // first parameter is the id of the scenario
         // second parameter is the id of the agent in the scenario
-        artifact m1view: mining.MiningPlanet(1,0)
-        artifact m2view: mining.MiningPlanet(1,1)
-        artifact m3view: mining.MiningPlanet(1,2)
-        artifact m4view: mining.MiningPlanet(1,3)
+        artifact m1view: mining.MiningPlanet(3,0)
+        artifact m2view: mining.MiningPlanet(3,1)
+        artifact m3view: mining.MiningPlanet(3,2)
+        artifact m4view: mining.MiningPlanet(3,3)
     }
 }
 
