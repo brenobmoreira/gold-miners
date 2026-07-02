@@ -105,6 +105,31 @@ seja: o agente conhece só o ouro que **já viu**, não o mapa todo.
 
 ---
 
+## 10. Divisão de regiões (F3) vs. capacidade (F2): redundância → complementaridade
+
+**Achado.** Ao introduzir a divisão de regiões (Feature 3), o repasse por capacidade
+(Feature 2) ficou **redundante e desperdiçado**: um agente sobre carga repassava um ouro
+da **própria** região ao parceiro, que — estando na **outra** região — não conseguia
+tratá-lo (só guardava a crença). Visto no log:
+`[miner4] forwarding gold(20,20) to miner3` (gold na região do miner4).
+
+**Consequência conceitual.** A divisão de regiões já faz o balanceamento estático que a
+capacidade buscava; mas **não** faz balanceamento **dinâmico** — se todo o ouro cai numa
+região, um agente afoga e o outro fica ocioso.
+
+**Reconciliação adotada.** Separar os dois papéis, tornando-os complementares:
+- **Roteamento (`@pregion`):** ouro percebido **fora** da minha região → repasso ao
+  parceiro (dono daquela região). `.send(P,tell,gold(X,Y))`.
+- **Ajuda entre regiões (`@pcell3`, repropósito da F2):** ouro **da minha** região quando
+  estou sobrecarregado (`in_my_region(X) & C > N`) → peço ao parceiro para cruzar e
+  ajudar. `.send(P,achieve,help(gold(X,Y)))`; o parceiro **ocioso** cruza e trata
+  (o `handle` não checa região), depois volta à sua região no `choose_gold`.
+
+Lição: features de coordenação podem se **sobrepor**; vale checar se uma subsome a outra
+e, se sim, redefinir papéis para que sejam complementares (estático + dinâmico).
+
+---
+
 ## 9. Ambientes (world ids) têm depósitos diferentes
 
 **Achado.** `WorldModel`: mapas 1–3 têm depósito em `(0,0)`; mapa 4 e 5 em `(5,27)`;

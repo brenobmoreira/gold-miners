@@ -167,14 +167,24 @@ in_my_region(X) :- region(right) & gsize(_,W,_) & X >= W/2.
      .print("Giving up current gold ",gold(OldX,OldY)," to handle ",gold(X,Y)," which I am seeing!");
      !init_handle(gold(X,Y)).
 
-// I'm busy and my backlog is over my capacity: ask my partner for help by
-// forwarding this freshly perceived gold. Only forward gold I found myself
-// ([source(self)]) so a forwarded piece is never bounced back (no ping-pong).
+// my region is overloaded (more known gold than my capacity): ask my partner
+// to cross into my region and help with this piece. Only for gold in my own
+// region ([source(self)] avoids ping-pong); out-of-region gold is routed by
+// @pregion instead.
 @pcell3
 +gold(X,Y)[source(self)]
-  :  not free & partner(P) & capacity(N) & .count(gold(_,_),C) & C > N
-  <- .print("Over capacity (",C,">",N,"): forwarding ",gold(X,Y)," to partner ",P);
-     .send(P,tell,gold(X,Y)).
+  :  in_my_region(X) & not free & partner(P) & capacity(N) & .count(gold(_,_),C) & C > N
+  <- .print("Over capacity (",C,">",N,") in my region: asking ",P," to help with ",gold(X,Y));
+     .send(P,achieve,help(gold(X,Y))).
+
+// partner asked for help: cross into its region and handle the gold if I'm
+// idle (handle itself does not check region); if busy, decline.
++!help(gold(X,Y)) : free
+  <- -free;
+     .print("Crossing to help my partner with ",gold(X,Y));
+     !init_handle(gold(X,Y)).
++!help(gold(X,Y)) : not free
+  <- .print("Busy, can't help my partner with ",gold(X,Y)," right now").
 
 
 /* The next plans encode how to handle a piece of gold.
