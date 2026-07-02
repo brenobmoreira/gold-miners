@@ -3,7 +3,6 @@ package mining;
 import cartago.Artifact;
 import cartago.OPERATION;
 import cartago.OpFeedbackParam;
-import cartago.ObsProperty;
 
 /**
  * Shared blackboard where miners reserve gold pieces so partners of the same
@@ -26,8 +25,7 @@ public class GoldRegistry extends Artifact {
      *  team had already reserved it. */
     @OPERATION
     void reserve(int x, int y, String team, OpFeedbackParam<Boolean> ok) {
-        ObsProperty p = getObsPropertyByTemplate("reserved", x, y, team);
-        if (p != null) {
+        if (hasObsPropertyByTemplate("reserved", x, y, team)) {
             ok.set(false);
         } else {
             defineObsProperty("reserved", x, y, team);
@@ -38,8 +36,7 @@ public class GoldRegistry extends Artifact {
     /** Release this team's reservation on gold (X,Y), if any. */
     @OPERATION
     void release(int x, int y, String team) {
-        ObsProperty p = getObsPropertyByTemplate("reserved", x, y, team);
-        if (p != null) {
+        if (hasObsPropertyByTemplate("reserved", x, y, team)) {
             removeObsPropertyByTemplate("reserved", x, y, team);
         }
     }
