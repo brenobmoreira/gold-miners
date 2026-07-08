@@ -38,6 +38,7 @@ public class WorldView extends GridWorldView {
 
     public void setEnv(MiningPlanet env) {
         this.env = env;
+        env.setSleep(jSpeed.getValue());
         //scenarios.setSelectedIndex(env.getSimId()-1);
     }
 
